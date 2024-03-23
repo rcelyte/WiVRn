@@ -60,9 +60,9 @@ wivrn::fd_base::~fd_base()
 		::close(fd);
 }
 
-wivrn::UDP::UDP()
+wivrn::UDP::UDP(const bool ipv4)
 {
-	fd = socket(AF_INET6, SOCK_DGRAM, 0);
+	fd = socket(ipv4 ? AF_INET : AF_INET6, SOCK_DGRAM, 0);
 
 	if (fd < 0)
 		throw std::system_error{errno, std::generic_category()};
@@ -86,7 +86,7 @@ void wivrn::UDP::bind(int port)
 
 void wivrn::UDP::connect(in6_addr address, int port)
 {
-	sockaddr_in6 sa;
+	sockaddr_in6 sa = {};
 	sa.sin6_family = AF_INET6;
 	sa.sin6_addr = address;
 	sa.sin6_port = htons(port);
@@ -97,7 +97,7 @@ void wivrn::UDP::connect(in6_addr address, int port)
 
 void wivrn::UDP::connect(in_addr address, int port)
 {
-	sockaddr_in sa;
+	sockaddr_in sa = {};
 	sa.sin_family = AF_INET;
 	sa.sin_addr = address;
 	sa.sin_port = htons(port);
@@ -113,7 +113,7 @@ void wivrn::UDP::subscribe_multicast(in6_addr address)
 	ipv6_mreq subscribe{};
 	subscribe.ipv6mr_multiaddr = address;
 
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &subscribe, sizeof(subscribe)) < 0)
+	if (setsockopt(fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &subscribe, sizeof(subscribe)) < 0)
 	{
 		::close(fd);
 		throw std::system_error{errno, std::generic_category()};
@@ -127,7 +127,7 @@ void wivrn::UDP::unsubscribe_multicast(in6_addr address)
 	ipv6_mreq subscribe{};
 	subscribe.ipv6mr_multiaddr = address;
 
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, &subscribe, sizeof(subscribe)) < 0)
+	if (setsockopt(fd, IPPROTO_IPV6, IPV6_LEAVE_GROUP, &subscribe, sizeof(subscribe)) < 0)
 	{
 		::close(fd);
 		throw std::system_error{errno, std::generic_category()};
@@ -161,6 +161,15 @@ void wivrn::TCP::init()
 		::close(fd);
 		throw std::system_error{errno, std::generic_category()};
 	}
+
+	#ifndef MSG_NOSIGNAL
+	int nosigpipe = 1;
+	if (setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &nosigpipe, sizeof(nosigpipe)) < 0)
+	{
+		::close(fd);
+		throw std::system_error{errno, std::generic_category()};
+	}
+	#endif
 
 	mutex = std::make_unique<std::mutex>();
 }
@@ -285,6 +294,32 @@ wivrn::deserialization_packet wivrn::UDP::receive_pending()
 	return deserialization_packet{buffer, span};
 }
 
+#ifdef __APPLE__
+#include <sys/syscall.h>
+
+struct mmsghdr {
+	struct msghdr msg_hdr;
+	size_t msg_len;
+};
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+static int sendmmsg(const int fd, struct mmsghdr *const vmessages, const unsigned int vlen, const int flags) {
+	int result;
+	do {
+		result = syscall(SYS_sendmsg_x, fd, vmessages, vlen, flags);
+	} while(result < 0 && errno == EINTR);
+	return result;
+}
+static int recvmmsg(const int fd, struct mmsghdr *const vmessages, const unsigned int vlen, const int flags, struct timespec*) {
+	int result;
+	do {
+		result = syscall(SYS_recvmsg_x, fd, vmessages, vlen, flags);
+	} while(result < 0 && errno == EINTR);
+	return result;
+}
+#pragma GCC diagnostic pop
+#endif
+
 wivrn::deserialization_packet wivrn::UDP::receive_raw()
 {
 	if (not messages.empty())
@@ -353,7 +388,7 @@ void wivrn::UDP::send_raw(const std::vector<std::span<uint8_t>> & data)
 	thread_local std::vector<iovec> spans;
 	spans.clear();
 	for (const auto & span: data)
-		spans.emplace_back((void *)span.data(), span.size());
+		spans.push_back({(void *)span.data(), span.size()});
 
 	if (::writev(fd, spans.data(), spans.size()) < 0)
 		throw std::system_error{errno, std::generic_category()};
@@ -383,7 +418,7 @@ void wivrn::UDP::send_many_raw(std::span<const std::vector<std::span<uint8_t>> *
 		        {
 		                .msg_hdr = {
 		                        .msg_iov = &iovecs[i],
-		                        .msg_iovlen = message->size(),
+		                        .msg_iovlen = static_cast<decltype(msghdr::msg_iovlen)>(message->size()),
 		                },
 		        });
 		i += message->size();
@@ -472,18 +507,18 @@ void wivrn::TCP::send_raw(const std::vector<std::span<uint8_t>> & spans)
 	iovecs.clear();
 
 	uint16_t size = 0;
-	iovecs.emplace_back(&size, sizeof(size));
+	iovecs.push_back({&size, sizeof(size)});
 	for (const auto & span: spans)
 	{
 		size += span.size_bytes();
-		iovecs.emplace_back(span.data(), span.size_bytes());
+		iovecs.push_back({span.data(), span.size_bytes()});
 	}
 
 	msghdr hdr{
 	        .msg_name = nullptr,
 	        .msg_namelen = 0,
 	        .msg_iov = iovecs.data(),
-	        .msg_iovlen = iovecs.size(),
+	        .msg_iovlen = static_cast<decltype(msghdr::msg_iovlen)>(iovecs.size()),
 	        .msg_control = nullptr,
 	        .msg_controllen = 0,
 	        .msg_flags = 0,
@@ -493,7 +528,11 @@ void wivrn::TCP::send_raw(const std::vector<std::span<uint8_t>> & spans)
 	while (true)
 	{
 		const auto & data = spans[0];
+		#ifdef MSG_NOSIGNAL
 		ssize_t sent = ::sendmsg(fd, &hdr, MSG_NOSIGNAL);
+		#else
+		ssize_t sent = ::sendmsg(fd, &hdr, 0);
+		#endif
 
 		if (sent == 0)
 			throw socket_shutdown{};
@@ -540,7 +579,7 @@ void wivrn::TCP::send_many_raw(std::span<const std::vector<std::span<uint8_t>> *
 	        .msg_name = nullptr,
 	        .msg_namelen = 0,
 	        .msg_iov = iovecs.data(),
-	        .msg_iovlen = iovecs.size(),
+	        .msg_iovlen = static_cast<decltype(msghdr::msg_iovlen)>(iovecs.size()),
 	        .msg_control = nullptr,
 	        .msg_controllen = 0,
 	        .msg_flags = 0,

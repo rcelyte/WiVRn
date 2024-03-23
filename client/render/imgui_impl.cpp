@@ -47,7 +47,7 @@
 #include <android/font.h>
 #include <android/font_matcher.h>
 #include <android/system_fonts.h>
-#else
+#elif defined(__linux__)
 #include <fontconfig/fontconfig.h>
 #endif
 
@@ -356,7 +356,7 @@ static std::vector<std::string> find_font(const ImFontGlyphRangesBuilder & glyph
 
 	return fonts;
 }
-#else
+#elif defined(__linux__)
 static std::vector<std::string> find_font(ImFontGlyphRangesBuilder glyph_range_builder, const std::string & locale)
 {
 	// See https://www.camconn.cc/post/how-to-fontconfig-lib-c/
@@ -448,6 +448,11 @@ static std::vector<std::string> find_font(ImFontGlyphRangesBuilder glyph_range_b
 
 	return fonts;
 }
+#else
+static std::vector<std::string> find_font(ImFontGlyphRangesBuilder glyph_range_builder, const std::string & locale)
+{
+	return {};
+}
 #endif
 
 void imgui_context::initialize_fonts()
@@ -500,9 +505,11 @@ void imgui_context::initialize_fonts()
 
 		config.MergeMode = true;
 		config.GlyphMinAdvanceX = 40; // Use if you want to make the icon monospaced
+		#ifndef __APPLE__ // TODO
 		static const ImWchar icon_ranges[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
 		io.Fonts->AddFontFromMemoryTTF(const_cast<std::byte *>(font_awesome_regular.data()), font_awesome_regular.size(), 30, &config, icon_ranges);
 		io.Fonts->AddFontFromMemoryTTF(const_cast<std::byte *>(font_awesome_solid.data()), font_awesome_solid.size(), 30, &config, icon_ranges);
+		#endif
 	}
 
 	{

@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <net/if.h>
 #endif
 
 #ifdef __cplusplus
@@ -426,8 +427,13 @@ mdns_socket_setup_ipv4(int sock, const struct sockaddr_in* saddr) {
 #endif
 	} else {
 		memcpy(&sock_addr, saddr, sizeof(struct sockaddr_in));
+		#ifdef __APPLE__
+		const unsigned ifindex = if_nametoindex("en0");
+		setsockopt(sock, IPPROTO_IP, IP_MULTICAST_IF, (const char*)&ifindex, sizeof(ifindex));
+		#else
 		setsockopt(sock, IPPROTO_IP, IP_MULTICAST_IF, (const char*)&sock_addr.sin_addr,
 		           sizeof(sock_addr.sin_addr));
+		#endif
 #ifndef _WIN32
 		sock_addr.sin_addr.s_addr = INADDR_ANY;
 #endif
@@ -491,6 +497,9 @@ mdns_socket_setup_ipv6(int sock, const struct sockaddr_in6* saddr) {
 	} else {
 		memcpy(&sock_addr, saddr, sizeof(struct sockaddr_in6));
 		unsigned int ifindex = 0;
+		#ifdef __APPLE__
+		ifindex = if_nametoindex("en0");
+		#endif
 		setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_IF, (const char*)&ifindex, sizeof(ifindex));
 #ifndef _WIN32
 		sock_addr.sin6_addr = in6addr_any;

@@ -104,7 +104,7 @@ class UDP : public fd_base
 	std::vector<std::span<uint8_t>> messages;
 
 public:
-	UDP();
+	UDP(bool ipv4);
 	explicit UDP(int fd);
 
 	deserialization_packet receive_raw();

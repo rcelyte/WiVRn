@@ -66,7 +66,7 @@ void wivrn::wivrn_connection::init()
 	}
 	else
 	{
-		stream = decltype(stream)();
+		stream = decltype(stream)(false);
 		stream.bind(port);
 	}
 

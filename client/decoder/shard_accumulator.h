@@ -21,10 +21,14 @@
 
 #include <memory>
 #include <vulkan/vulkan.hpp>
+#include "wivrn_config.h"
 
 #ifdef __ANDROID__
 #include "decoder/android/android_decoder.h"
 using decoder_impl = ::wivrn::android::decoder;
+#elif defined(__APPLE__)
+#include "decoder/apple/apple_decoder.h"
+using decoder_impl = ::wivrn::apple::decoder;
 #else
 #include "decoder/ffmpeg/ffmpeg_decoder.h"
 using decoder_impl = ::wivrn::ffmpeg::decoder;

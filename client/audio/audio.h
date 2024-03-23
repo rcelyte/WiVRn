@@ -25,6 +25,12 @@ namespace wivrn
 {
 using audio = ::wivrn::android::audio;
 }
+#elif defined(__APPLE__)
+#include "apple/audio.h"
+namespace wivrn
+{
+using audio = ::wivrn::apple::audio;
+}
 #else
 
 #include "wivrn_client.h"

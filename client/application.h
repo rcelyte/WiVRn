@@ -211,6 +211,11 @@ public:
 		return instance().exit_requested;
 	};
 
+	static void request_exit()
+	{
+		instance().exit_requested = true;
+	};
+
 	static void poll_actions();
 	static std::optional<std::pair<XrTime, float>> read_action_float(XrAction action);
 	static std::optional<std::pair<XrTime, bool>> read_action_bool(XrAction action);

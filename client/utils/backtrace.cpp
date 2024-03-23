@@ -18,6 +18,7 @@
  */
 
 #include "backtrace.h"
+#ifdef __linux__
 
 #include <cassert>
 #include <cxxabi.h>
@@ -137,3 +138,10 @@ std::vector<utils::backtrace_entry> utils::backtrace(size_t max)
 
 	return trace;
 }
+
+#else // __linux__
+std::vector<utils::backtrace_entry> utils::backtrace(size_t max)
+{
+	return {};
+}
+#endif // __linux__

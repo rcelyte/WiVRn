@@ -800,16 +800,19 @@ static const char * get_face_icon(XrTime predicted_display_time)
 	if (not expression.is_valid)
 		return ICON_FA_FACE_MEH;
 
-	return std::ranges::min_element(w, std::ranges::less(), [&](const auto & p) {
-		       float res = 0;
-		       for (size_t i = 0; i < XR_FACE_EXPRESSION2_COUNT_FB; ++i)
-		       {
-			       float d = expression.weights[i] - p.second[i];
-			       res += d * d;
-		       }
-		       return res;
-	       })
-	        ->first;
+	const auto distance = [&](const auto & p) {
+		float res = 0;
+		for (size_t i = 0; i < XR_FACE_EXPRESSION2_COUNT_FB; ++i) {
+			float d = expression.weights[i] - p.second[i];
+			res += d * d;
+		}
+		return res;
+	};
+	auto closest = w.cbegin();
+	for(auto first = closest, last = w.cend(); ++first != last;)
+		if (distance(*first) < distance(*closest))
+			closest = first;
+	return closest->first;
 }
 
 void scenes::lobby::draw_features_status(XrTime predicted_display_time)

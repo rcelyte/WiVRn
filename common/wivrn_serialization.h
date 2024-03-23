@@ -158,7 +158,7 @@ public:
 			void operator()(size_t s)
 			{
 				if (s > 0)
-					exp_spans.emplace_back(it, it + s);
+					exp_spans.emplace_back(&*it, &*(it + s));
 				it += s;
 			}
 			void operator()(const std::span<uint8_t> & span)
