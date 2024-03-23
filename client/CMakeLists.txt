@@ -4,6 +4,10 @@ set(KTX_FEATURE_TESTS OFF)
 set(KTX_FEATURE_VK_UPLOAD ON)
 set(KTX_FEATURE_GL_UPLOAD OFF)
 set(KTX_FEATURE_LOADTEST_APPS OFF)
+if(APPLE)
+    set(FASTGLTF_DISABLE_CUSTOM_MEMORY_POOL ON)
+    set(DYNAMIC_LOADER OFF)
+endif()
 
 set(FASTGLTF_COMPILE_AS_CPP20 ON)
 
@@ -46,6 +50,26 @@ if(ANDROID)
 else()
     add_executable(wivrn)
 
+    # TODO: set version from `git describe --tags` (must be formatted as "x.y.z")
+    set_target_properties(wivrn PROPERTIES
+        MACOSX_BUNDLE_ICON_FILE AppIcon60x60@3x.png
+        MACOSX_BUNDLE_GUI_IDENTIFIER org.meumeu.wivrn
+        MACOSX_BUNDLE_LONG_VERSION_STRING 0.19.1
+        MACOSX_BUNDLE_BUNDLE_NAME WiVRn
+        MACOSX_BUNDLE_SHORT_VERSION_STRING 0.19.1
+        MACOSX_BUNDLE_BUNDLE_VERSION 0.19.1
+        MACOSX_BUNDLE_COPYRIGHT "</string>\n\
+\t<key>UIApplicationShortcutItems</key>\n\t<array><dict>\n\
+\t\t<key>UIApplicationShortcutItemType</key>\n\t\t<string></string>\n\
+\t\t<key>UIApplicationShortcutItemIconType</key>\n\t\t<string>UIApplicationShortcutIconTypeLocation</string>\n\
+\t\t<key>UIApplicationShortcutItemTitle</key>\n\t\t<string>Calibrate</string>\n\
+\t</dict></array>\n\
+\t<key>UISupportedInterfaceOrientations</key>\n\t<array><string>UIInterfaceOrientationLandscapeRight</string></array>\n\
+\t<key>NSBonjourServices</key>\n\t<array><string>_wivrn._tcp</string></array>\n\
+\t<key>NSCameraUsageDescription</key>\n\t<string>Required for ARKit positioning</string>\n\
+\t<key>NSLocalNetworkUsageDescription</key>\n\t<string>Required for server communication"
+    )
+
     if (OPENXR_FOUND)
         target_link_libraries(wivrn OpenXR::openxr_loader OpenXR::headers)
     else()
@@ -53,11 +77,20 @@ else()
         target_link_libraries(wivrn openxr_loader)
     endif()
 
-    target_link_libraries(wivrn PkgConfig::LIBAV Fontconfig::Fontconfig)
+    if(APPLE)
+        target_compile_definitions(wivrn PRIVATE -DVK_USE_PLATFORM_METAL_EXT)
+        target_link_libraries(wivrn "-framework Foundation" "-framework AudioToolbox" "-framework UIKit" "-framework CoreMedia" "-framework CoreVideo" "-framework VideoToolbox"
+            "-framework ARKit" "-framework CoreGraphics")
+        file(GLOB PLATFORM_SOURCE CONFIGURE_DEPENDS
+            "arkit_setup.m"
+            "audio/apple/*.cpp"
+            "decoder/apple/*.cpp"
+            )
+    else()
+        target_link_libraries(wivrn PkgConfig::LIBAV Fontconfig::Fontconfig)
+        file(GLOB PLATFORM_SOURCE CONFIGURE_DEPENDS "decoder/ffmpeg/*.cpp")
+    endif()
 
-
-    file(GLOB PLATFORM_SOURCE CONFIGURE_DEPENDS
-        "decoder/ffmpeg/*.cpp")
     target_sources(wivrn PRIVATE ${PLATFORM_SOURCE})
 
     install(DIRECTORY ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_INSTALL_DATADIR}/wivrn)
@@ -88,6 +121,9 @@ target_compile_definitions(wivrn PRIVATE IMGUI_ENABLE_FREETYPE)
 
 target_compile_features(wivrn PRIVATE cxx_std_20)
 target_compile_definitions(wivrn PRIVATE "XR_USE_TIMESPEC=1")
+if(APPLE)
+    target_compile_definitions(wivrn PRIVATE VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL=0)
+endif()
 
 set_target_properties(wivrn PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
@@ -117,7 +153,7 @@ target_compile_options(wivrn PRIVATE -Wno-missing-field-initializers -Wno-unused
 
 target_include_directories(wivrn PRIVATE .)
 
-if(NOT ANDROID)
+if(NOT ANDROID AND NOT APPLE)
     install(TARGETS wivrn)
 endif()
 

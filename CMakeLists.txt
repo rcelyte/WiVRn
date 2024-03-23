@@ -146,8 +146,8 @@ if (WIVRN_BUILD_SERVER)
     pkg_check_modules(glib2 REQUIRED IMPORTED_TARGET glib-2.0 gio-2.0 gio-unix-2.0)
 endif()
 
-if (WIVRN_BUILD_CLIENT AND NOT ANDROID)
-    pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET libavcodec libavutil libswscale libavfilter)
+if (WIVRN_BUILD_CLIENT AND NOT ANDROID AND NOT APPLE)
+    pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET libavcodec libavutil libswscale)
     find_package(Fontconfig REQUIRED)
 
     if (WIVRN_USE_SYSTEM_OPENXR STREQUAL "AUTO")
@@ -178,7 +178,7 @@ FetchContent_Declare(boostpfr      EXCLUDE_FROM_ALL URL https://github.com/boost
 FetchContent_Declare(boost         EXCLUDE_FROM_ALL URL https://github.com/boostorg/boost/releases/download/boost-1.84.0/boost-1.84.0.tar.xz)
 # Client dependencies
 FetchContent_Declare(simdjson      EXCLUDE_FROM_ALL URL https://github.com/simdjson/simdjson/archive/refs/tags/v3.9.3.tar.gz)
-FetchContent_Declare(fastgltf      EXCLUDE_FROM_ALL URL https://github.com/spnda/fastgltf/archive/refs/tags/v0.7.1.tar.gz)
+FetchContent_Declare(fastgltf      EXCLUDE_FROM_ALL URL https://github.com/rcelyte/fastgltf/archive/9caaaae4de1c204384203cd3fefd9d184a437d70.tar.gz)
 FetchContent_Declare(glm           EXCLUDE_FROM_ALL URL https://github.com/g-truc/glm/archive/refs/tags/0.9.9.8.tar.gz)
 FetchContent_Declare(openxr_loader EXCLUDE_FROM_ALL URL https://github.com/KhronosGroup/OpenXR-SDK/archive/refs/tags/release-1.0.34.tar.gz)
 FetchContent_Declare(spdlog        EXCLUDE_FROM_ALL URL https://github.com/gabime/spdlog/archive/refs/tags/v1.11.0.tar.gz)

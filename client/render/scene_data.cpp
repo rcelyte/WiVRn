@@ -139,10 +139,9 @@ fastgltf::Asset load_gltf_asset(fastgltf::GltfDataBuffer & buffer, const std::fi
 	auto gltf_options =
 	        fastgltf::Options::DontRequireValidAssetMember |
 	        fastgltf::Options::AllowDouble |
-	        fastgltf::Options::LoadGLBBuffers |
 	        fastgltf::Options::DecomposeNodeMatrices;
 
-	auto expected_asset = parser.loadGltf(&buffer, directory, gltf_options);
+	auto expected_asset = parser.loadGltf(buffer, directory, gltf_options);
 
 	if (auto error = expected_asset.error(); error != fastgltf::Error::None)
 		throw std::runtime_error(std::string(fastgltf::getErrorMessage(error)));
@@ -232,12 +231,12 @@ vk::PrimitiveTopology convert(fastgltf::PrimitiveType type)
 	throw std::invalid_argument("type");
 }
 
-glm::vec4 convert(const std::array<float, 4> & v)
+glm::vec4 convert(const fastgltf::math::nvec4 & v)
 {
 	return {v[0], v[1], v[2], v[3]};
 }
 
-glm::vec3 convert(const std::array<float, 3> & v)
+glm::vec3 convert(const fastgltf::math::nvec3 & v)
 {
 	return {v[0], v[1], v[2]};
 }
@@ -262,7 +261,7 @@ void copy_vertex_attributes(
 		if (it == primitive.attributes.end())
 			continue;
 
-		const fastgltf::Accessor & accessor = asset.accessors.at(it->second);
+		const fastgltf::Accessor & accessor = asset.accessors.at(it->accessorIndex);
 
 		if (vertices.size() < accessor.count)
 			vertices.resize(accessor.count, {});
@@ -287,7 +286,7 @@ void copy_vertex_attributes(
 	if (it == primitive.attributes.end())
 		return;
 
-	const fastgltf::Accessor & accessor = asset.accessors.at(it->second);
+	const fastgltf::Accessor & accessor = asset.accessors.at(it->accessorIndex);
 
 	if (vertices.size() < accessor.count)
 		vertices.resize(accessor.count, {});
@@ -796,10 +795,11 @@ scene_data scene_loader::operator()(const std::filesystem::path & gltf_path)
 	scene_data data;
 
 	asset asset_file(gltf_path);
-	fastgltf::GltfDataBuffer data_buffer;
-	data_buffer.copyBytes(reinterpret_cast<const uint8_t *>(asset_file.data()), asset_file.size());
+	auto data_buffer = fastgltf::GltfDataBuffer::FromBytes(reinterpret_cast<const std::byte *>(asset_file.data()), asset_file.size());
+	if (data_buffer.error() != fastgltf::Error::None)
+		throw std::runtime_error(std::string(fastgltf::getErrorMessage(data_buffer.error())));
 
-	fastgltf::Asset asset = load_gltf_asset(data_buffer, gltf_path.parent_path());
+	fastgltf::Asset asset = load_gltf_asset(data_buffer.get(), gltf_path.parent_path());
 	loader_context ctx(gltf_path.parent_path(), asset, physical_device, device, queue, cb_pool);
 
 #ifndef NDEBUG

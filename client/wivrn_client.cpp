@@ -22,7 +22,9 @@
 #include "wivrn_packets.h"
 #include <arpa/inet.h>
 #include <ifaddrs.h>
+#ifdef __linux__
 #include <linux/ipv6.h>
+#endif
 #include <net/if.h>
 #include <netinet/ip.h>
 #include <poll.h>
@@ -77,7 +79,8 @@ void wivrn_session::handshake(T address, bool tcp_only)
 				auto h = std::get<to_headset::handshake>(*packet);
 				if (h.stream_port > 0 && !tcp_only)
 				{
-					stream = decltype(stream)();
+					static_assert(std::is_same_v<std::decay_t<T>, in_addr> || std::is_same_v<std::decay_t<T>, in6_addr>);
+					stream = decltype(stream)(std::is_same_v<std::decay_t<T>, in_addr>);
 					stream.connect(address, h.stream_port);
 					init_stream(stream);
 				}

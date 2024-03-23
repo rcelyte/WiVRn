@@ -108,7 +108,7 @@ std::shared_ptr<scenes::stream> scenes::stream::create(std::unique_ptr<wivrn_ses
 	if (self->instance.has_extension(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME))
 	{
 		info.available_refresh_rates = self->session.get_refresh_rates();
-		if (std::ranges::find(info.available_refresh_rates, config.preferred_refresh_rate) != info.available_refresh_rates.end())
+		if (std::find(info.available_refresh_rates.begin(), info.available_refresh_rates.end(), config.preferred_refresh_rate) != info.available_refresh_rates.end())
 			info.preferred_refresh_rate = config.preferred_refresh_rate;
 		else
 			info.preferred_refresh_rate = self->session.get_current_refresh_rate();
@@ -306,8 +306,8 @@ std::vector<std::shared_ptr<shard_accumulator::blit_handle>> scenes::stream::com
 			std::erase_if(common_frames,
 				[this, i](auto & left)
 				{
-					return std::ranges::none_of(
-						decoders[i].latest_frames,
+					return std::none_of(
+						decoders[i].latest_frames.cbegin(), decoders[i].latest_frames.cend(),
 						[&left](auto & right)
 						{
 							return left->feedback.frame_index == right->feedback.frame_index;
@@ -319,14 +319,13 @@ std::vector<std::shared_ptr<shard_accumulator::blit_handle>> scenes::stream::com
 	std::optional<uint64_t> frame_index;
 	if (not common_frames.empty())
 	{
-		auto min = std::ranges::min_element(common_frames,
-		                                    std::ranges::less{},
-		                                    [display_time](auto frame) {
-			                                    if (not frame)
-				                                    return std::numeric_limits<XrTime>::max();
-			                                    return std::abs(frame->view_info.display_time - display_time);
-		                                    });
-
+		const auto deltaTime = [display_time](shard_accumulator::blit_handle *const frame) {
+			return (frame != nullptr) ? std::abs(frame->view_info.display_time - display_time) : std::numeric_limits<XrTime>::max();
+		};
+		auto min = common_frames.cbegin();
+		for(auto first = min, last = common_frames.cend(); ++first != last;)
+			if (deltaTime(*first) < deltaTime(*min))
+				min = first;
 		assert(*min);
 		frame_index = (*min)->feedback.frame_index;
 	}

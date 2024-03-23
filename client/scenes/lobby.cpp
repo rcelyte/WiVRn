@@ -35,6 +35,7 @@
 
 #include "wivrn_discover.h"
 #include <cstdint>
+#include <cinttypes>
 #include <glm/gtc/quaternion.hpp>
 #include <magic_enum.hpp>
 #include <simdjson.h>
@@ -164,7 +165,7 @@ std::unique_ptr<wivrn_session> connect_to_session(wivrn_discover::service servic
 	if (!manual_connection)
 	{
 		char protocol_string[17];
-		sprintf(protocol_string, "%016lx", xrt::drivers::wivrn::protocol_version);
+		sprintf(protocol_string, "%016" PRIx64, xrt::drivers::wivrn::protocol_version);
 
 		spdlog::debug("Client protocol version: {}", protocol_string);
 		spdlog::debug("Server TXT:");
@@ -291,7 +292,7 @@ void scenes::lobby::update_server_list()
 	}
 
 	char protocol_string[17];
-	sprintf(protocol_string, "%016lx", xrt::drivers::wivrn::protocol_version);
+	sprintf(protocol_string, "%016" PRIx64, xrt::drivers::wivrn::protocol_version);
 
 	for (auto & service: discovered_services)
 	{
@@ -662,6 +663,10 @@ void scenes::lobby::on_focused()
 	uint32_t width = views[0].recommendedImageRectWidth;
 	uint32_t height = views[0].recommendedImageRectHeight;
 
+	#ifdef __APPLE__ // temporary hack accompanying workaround in `lobby::on_unfocused()`
+	swapchains_lobby.clear();
+	swapchains_controllers.clear();
+	#endif
 	swapchains_lobby.reserve(views.size());
 	swapchains_controllers.reserve(views.size());
 	for ([[maybe_unused]] auto view: views)
@@ -787,10 +792,12 @@ void scenes::lobby::on_unfocused()
 	right_hand.reset();
 
 	renderer.reset();
+	#ifndef __APPLE__ // TODO: investigate why monado is exploding when releasing swapchains
 	swapchains_lobby.clear();
 	swapchains_controllers.clear();
 	swapchain_imgui = xr::swapchain();
 	passthrough.emplace<std::monostate>();
+	#endif
 	multicast.reset();
 }
 

@@ -60,8 +60,12 @@ asset::~asset()
 
 static std::filesystem::path get_exe_path()
 {
+	#ifdef __linux__
 	// Linux only: see https://stackoverflow.com/a/1024937
 	return std::filesystem::read_symlink("/proc/self/exe");
+	#else
+	throw std::runtime_error("executable path only available on Linux platforms");
+	#endif
 }
 
 static std::filesystem::path get_asset_root()

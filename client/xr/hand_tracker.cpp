@@ -82,7 +82,7 @@ std::optional<std::array<xr::hand_tracker::joint, XR_HAND_JOINT_COUNT_EXT>> xr::
 
 bool xr::hand_tracker::check_flags(const std::array<joint, XR_HAND_JOINT_COUNT_EXT> & joints, XrSpaceLocationFlags position, XrSpaceVelocityFlags velocity)
 {
-	return std::ranges::all_of(joints, [position, velocity](const auto & joint) {
+	return std::all_of(joints.cbegin(), joints.cend(), [position, velocity](const auto & joint) {
 		return (joint.first.locationFlags & position) == position and (joint.second.velocityFlags & velocity) == velocity;
 	});
 }

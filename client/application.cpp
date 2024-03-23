@@ -434,6 +434,10 @@ void application::initialize_vulkan()
 	instance_extensions.push_back(VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME);
 #endif
 
+#ifdef __APPLE__
+        vk_device_extensions.push_back(VK_EXT_METAL_OBJECTS_EXTENSION_NAME);
+#endif
+
 	vk::ApplicationInfo application_info{
 	        .pApplicationName = app_info.name.c_str(),
 	        .applicationVersion = (uint32_t)app_info.version,
@@ -935,7 +939,9 @@ std::pair<XrAction, XrActionType> application::get_action(const std::string & re
 
 application::application(application_info info) :
         app_info(std::move(info))
-
+        #ifdef __APPLE__
+        , vk_context(vkGetInstanceProcAddr)
+        #endif
 {
 #ifdef __ANDROID__
 	// https://docs.oracle.com/javase/7/docs/technotes/guides/jni/spec/types.html

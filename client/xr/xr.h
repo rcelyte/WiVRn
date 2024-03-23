@@ -20,7 +20,6 @@
 #pragma once
 
 #include "actionset.h"
-#include "error.h"
 #include "instance.h"
 #include "session.h"
 #include "swapchain.h"
