@@ -26,6 +26,9 @@
 #ifdef __ANDROID__
 #include "android/audio.h"
 using audio = ::wivrn::android::audio;
+#elif defined(__APPLE__)
+#include "apple/audio.h"
+using audio = ::wivrn::apple::audio;
 #else
 
 class audio

@@ -60,9 +60,9 @@ xrt::drivers::wivrn::fd_base::~fd_base()
 		::close(fd);
 }
 
-xrt::drivers::wivrn::UDP::UDP()
+xrt::drivers::wivrn::UDP::UDP(const bool ipv4)
 {
-	fd = socket(AF_INET6, SOCK_DGRAM, 0);
+	fd = socket(ipv4 ? AF_INET : AF_INET6, SOCK_DGRAM, 0);
 
 	if (fd < 0)
 		throw std::system_error{errno, std::generic_category()};
@@ -86,7 +86,7 @@ void xrt::drivers::wivrn::UDP::bind(int port)
 
 void xrt::drivers::wivrn::UDP::connect(in6_addr address, int port)
 {
-	sockaddr_in6 sa;
+	sockaddr_in6 sa = {};
 	sa.sin6_family = AF_INET6;
 	sa.sin6_addr = address;
 	sa.sin6_port = htons(port);
@@ -97,7 +97,7 @@ void xrt::drivers::wivrn::UDP::connect(in6_addr address, int port)
 
 void xrt::drivers::wivrn::UDP::connect(in_addr address, int port)
 {
-	sockaddr_in sa;
+	sockaddr_in sa = {};
 	sa.sin_family = AF_INET;
 	sa.sin_addr = address;
 	sa.sin_port = htons(port);
@@ -113,7 +113,7 @@ void xrt::drivers::wivrn::UDP::subscribe_multicast(in6_addr address)
 	ipv6_mreq subscribe{};
 	subscribe.ipv6mr_multiaddr = address;
 
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &subscribe, sizeof(subscribe)) < 0)
+	if (setsockopt(fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &subscribe, sizeof(subscribe)) < 0)
 	{
 		::close(fd);
 		throw std::system_error{errno, std::generic_category()};
@@ -127,7 +127,7 @@ void xrt::drivers::wivrn::UDP::unsubscribe_multicast(in6_addr address)
 	ipv6_mreq subscribe{};
 	subscribe.ipv6mr_multiaddr = address;
 
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, &subscribe, sizeof(subscribe)) < 0)
+	if (setsockopt(fd, IPPROTO_IPV6, IPV6_LEAVE_GROUP, &subscribe, sizeof(subscribe)) < 0)
 	{
 		::close(fd);
 		throw std::system_error{errno, std::generic_category()};
@@ -161,6 +161,15 @@ void xrt::drivers::wivrn::TCP::init()
 		::close(fd);
 		throw std::system_error{errno, std::generic_category()};
 	}
+
+	#ifndef MSG_NOSIGNAL
+	int nosigpipe = 1;
+	if (setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &nosigpipe, sizeof(nosigpipe)) < 0)
+	{
+		::close(fd);
+		throw std::system_error{errno, std::generic_category()};
+	}
+	#endif
 
 	mutex = std::make_unique<std::mutex>();
 }
@@ -273,17 +282,15 @@ std::pair<xrt::drivers::wivrn::deserialization_packet, sockaddr_in6> xrt::driver
 
 xrt::drivers::wivrn::deserialization_packet xrt::drivers::wivrn::UDP::receive_raw()
 {
-	size_t size = recv(fd, nullptr, 0, MSG_PEEK | MSG_TRUNC);
-	std::vector<uint8_t> buffer(size);
+	uint8_t buffer[0x10000];
 
-	ssize_t received = recv(fd, buffer.data(), buffer.size(), 0);
+	ssize_t received = recv(fd, buffer, sizeof(buffer), 0);
 	if (received < 0)
 		throw std::system_error{errno, std::generic_category()};
 
 	bytes_received_ += received;
-	buffer.resize(received);
 
-	return deserialization_packet{std::move(buffer)};
+	return deserialization_packet{std::vector<uint8_t>(buffer, &buffer[received])};
 }
 
 void xrt::drivers::wivrn::UDP::send_raw(const std::vector<uint8_t> & data)
@@ -300,7 +307,7 @@ void xrt::drivers::wivrn::UDP::send_raw(const std::vector<std::span<uint8_t>> & 
 	thread_local std::vector<iovec> spans;
 	spans.clear();
 	for (const auto & span: data)
-		spans.emplace_back((void *)span.data(), span.size());
+		spans.push_back({(void *)span.data(), span.size()});
 
 	if (::writev(fd, spans.data(), spans.size()) < 0)
 		throw std::system_error{errno, std::generic_category()};
@@ -354,18 +361,18 @@ void xrt::drivers::wivrn::TCP::send_raw(const std::vector<std::span<uint8_t>> & 
 	iovecs.clear();
 
 	uint16_t size = 0;
-	iovecs.emplace_back(&size, sizeof(size));
+	iovecs.push_back({&size, sizeof(size)});
 	for (const auto & span: spans)
 	{
 		size += span.size_bytes();
-		iovecs.emplace_back(span.data(), span.size_bytes());
+		iovecs.push_back({span.data(), span.size_bytes()});
 	}
 
 	msghdr hdr{
 	        .msg_name = nullptr,
 	        .msg_namelen = 0,
 	        .msg_iov = iovecs.data(),
-	        .msg_iovlen = iovecs.size(),
+	        .msg_iovlen = (decltype(hdr.msg_iovlen))(uint32_t)iovecs.size(),
 	        .msg_control = nullptr,
 	        .msg_controllen = 0,
 	        .msg_flags = 0,
@@ -375,7 +382,11 @@ void xrt::drivers::wivrn::TCP::send_raw(const std::vector<std::span<uint8_t>> & 
 	while (true)
 	{
 		const auto & data = spans[0];
+		#ifdef MSG_NOSIGNAL
 		ssize_t sent = ::sendmsg(fd, &hdr, MSG_NOSIGNAL);
+		#else
+		ssize_t sent = ::sendmsg(fd, &hdr, 0);
+		#endif
 
 		if (sent == 0)
 			throw socket_shutdown{};

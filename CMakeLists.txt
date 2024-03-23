@@ -141,8 +141,8 @@ if (WIVRN_BUILD_SERVER)
     find_package(nlohmann_json REQUIRED)
 endif()
 
-if (WIVRN_BUILD_CLIENT AND NOT ANDROID)
-    pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET libavcodec libavutil libswscale libavfilter)
+if (WIVRN_BUILD_CLIENT AND NOT ANDROID AND NOT APPLE)
+    pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET libavcodec libavutil libswscale)
 
     if (WIVRN_USE_SYSTEM_OPENXR STREQUAL "AUTO")
         find_package(OpenXR 1.0.26)

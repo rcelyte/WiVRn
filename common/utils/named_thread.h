@@ -28,8 +28,17 @@ namespace utils
 template <typename... Args>
 std::thread named_thread(const std::string & name, Args &&... args)
 {
+	#ifdef __APPLE__
+	std::array<char, 16> shortName = {};
+	strcpy(&shortName[0], name.substr(0, 15).c_str());
+	std::thread t{[](std::array<char, 16> name, auto... args) {
+		pthread_setname_np(&name[0]);
+		std::invoke(std::forward<Args>(args)...);
+	}, shortName, std::forward<Args>(args)...};
+	#else
 	std::thread t{std::forward<Args>(args)...};
 	pthread_setname_np(t.native_handle(), name.substr(0, 15).c_str());
+	#endif
 	return t;
 }
 } // namespace utils

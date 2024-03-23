@@ -64,10 +64,14 @@ static std::filesystem::path get_asset_root()
 	if (path && strcmp(path, ""))
 		return path;
 
+	#ifdef __linux__
 	// Linux only: see https://stackoverflow.com/a/1024937
 	auto exe = std::filesystem::read_symlink("/proc/self/exe");
 
 	return exe.parent_path().parent_path() / "share" / "wivrn" / "assets";
+	#else
+	throw std::runtime_error("WIVRN_ASSET_ROOT must be set on non-Linux platforms");
+	#endif
 }
 
 std::filesystem::path asset::asset_root()

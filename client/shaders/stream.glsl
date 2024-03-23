@@ -21,8 +21,9 @@
 
 #ifdef VERT_SHADER
 
-layout (constant_id = 0) const float useful_size_x = 1.0;
-layout (constant_id = 1) const float useful_size_y = 1.0;
+// Using specialization constants here breaks MoltenVK
+/*layout (constant_id = 0)*/ const float useful_size_x = 1.0;
+/*layout (constant_id = 1)*/ const float useful_size_y = 1.0;
 
 vec2 positions[3] = vec2[](
         vec2(-1.0, -1.0),

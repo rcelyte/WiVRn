@@ -67,7 +67,7 @@ public:
 	{
 		usage |= vk::BufferUsageFlagBits::eUniformBuffer;
 
-		size_t alignment = std::max(limits.minUniformBufferOffsetAlignment, alignof(T));
+		size_t alignment = std::max<vk::DeviceSize>(limits.minUniformBufferOffsetAlignment, alignof(T));
 		return add(alignment, &data_to_add, sizeof(data_to_add));
 	}
 

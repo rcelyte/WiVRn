@@ -143,7 +143,7 @@ public:
 			void operator()(size_t s)
 			{
 				if (s > 0)
-					res.emplace_back(it, it + s);
+					res.emplace_back(&*it, &*(it + s));
 				it += s;
 			}
 			void operator()(const std::span<uint8_t> & span)

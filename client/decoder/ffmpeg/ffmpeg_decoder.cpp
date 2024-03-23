@@ -29,7 +29,6 @@ extern "C"
 #include <libavcodec/avcodec.h>
 #include <libavutil/buffer.h>
 #include <libavutil/hwcontext.h>
-#include <libavutil/hwcontext_vulkan.h>
 #include <libswscale/swscale.h>
 }
 
@@ -80,7 +79,7 @@ decoder::decoder(
 {
 	free_images.resize(image_count);
 
-	for (int i = 0; i < image_count; i++)
+	for (uint32_t i = 0; i < image_count; i++)
 	{
 		free_images[i] = i;
 

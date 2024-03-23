@@ -4,6 +4,10 @@ set(KTX_FEATURE_TESTS OFF)
 set(KTX_FEATURE_VK_UPLOAD ON)
 set(KTX_FEATURE_GL_UPLOAD OFF)
 set(KTX_FEATURE_LOADTEST_APPS OFF)
+if(APPLE)
+    set(FASTGLTF_DISABLE_CUSTOM_MEMORY_POOL ON)
+    set(DYNAMIC_LOADER OFF)
+endif()
 
 set(FASTGLTF_COMPILE_AS_CPP20 ON)
 
@@ -72,11 +76,18 @@ else()
         target_link_libraries(wivrn openxr_loader)
     endif()
 
-    target_link_libraries(wivrn PkgConfig::LIBAV)
+    if(APPLE)
+        target_compile_definitions(wivrn PRIVATE -DVK_USE_PLATFORM_METAL_EXT)
+        target_link_libraries(wivrn "-framework Foundation" "-framework AudioToolbox" "-framework UIKit" "-framework CoreMedia" "-framework CoreVideo" "-framework VideoToolbox")
+        file(GLOB PLATFORM_SOURCE CONFIGURE_DEPENDS
+            "audio/apple/*.cpp"
+            "decoder/apple/*.cpp"
+            )
+    else()
+        target_link_libraries(wivrn PkgConfig::LIBAV)
+        file(GLOB PLATFORM_SOURCE CONFIGURE_DEPENDS "decoder/ffmpeg/*.cpp")
+    endif()
 
-
-    file(GLOB PLATFORM_SOURCE CONFIGURE_DEPENDS
-        "decoder/ffmpeg/*.cpp")
     target_sources(wivrn PRIVATE ${PLATFORM_SOURCE})
 
     install(DIRECTORY ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_INSTALL_DATADIR}/wivrn)
@@ -107,6 +118,9 @@ target_compile_definitions(wivrn PRIVATE IMGUI_ENABLE_FREETYPE)
 
 target_compile_features(wivrn PRIVATE cxx_std_20)
 target_compile_definitions(wivrn PRIVATE "XR_USE_TIMESPEC=1")
+if(APPLE)
+    target_compile_definitions(wivrn PRIVATE VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL=0)
+endif()
 
 set_target_properties(wivrn PROPERTIES CXX_VISIBILITY_PRESET hidden)
 

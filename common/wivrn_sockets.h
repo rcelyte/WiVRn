@@ -101,7 +101,7 @@ public:
 class UDP : public fd_base
 {
 public:
-	UDP();
+	UDP(bool ipv4);
 	explicit UDP(int fd);
 
 	deserialization_packet receive_raw();
